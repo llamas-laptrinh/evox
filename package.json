@@ -50,6 +50,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "gitnexus": "^1.6.3",
     "happy-dom": "^20.5.0",
     "msw": "^2.12.8",
     "playwright": "^1.58.1",
