@@ -189,3 +189,10 @@ This project is indexed by GitNexus as **evox** (7944 symbols, 9084 relationship
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+<!-- BEGIN agent-kb -->
+@AGENTS.md
+
+<!-- Claude Code đọc file này. Dòng @import ở trên kéo toàn bộ AGENTS.md vào. -->
+<!-- Cần rule riêng cho Claude Code (vd 3-layer memory) thì thêm bên dưới, KHÔNG lặp lại nội dung AGENTS.md. -->
+<!-- END agent-kb -->

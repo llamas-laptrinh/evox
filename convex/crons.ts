@@ -6,12 +6,16 @@ const crons = cronJobs();
 // Sync Linear issues every 5 minutes (AGT-192: reduced from 30s to save Convex costs)
 // 12 calls/hour instead of 120 = 90% reduction
 // Real-time updates still come via /api/webhooks/linear webhook
-crons.interval(
-  "sync-linear",
-  { minutes: 5 },
-  internal.linearSync.syncAll,
-  {}
-);
+//
+// DISABLED for self-hosted / local-only setups (no LINEAR_API_KEY).
+// Tasks are created directly via the /new-task page → api.tasks.create.
+// Re-enable by uncommenting if you wire Linear back up.
+// crons.interval(
+//   "sync-linear",
+//   { minutes: 5 },
+//   internal.linearSync.syncAll,
+//   {}
+// );
 
 // AGT-119: Agent heartbeats — staggered 15-min intervals
 // MAX at :00, SAM at :05, LEO at :10 of each 15-min window
