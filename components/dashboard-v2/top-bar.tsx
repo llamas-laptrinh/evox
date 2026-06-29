@@ -46,7 +46,7 @@ export function TopBar({
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-border-default bg-base px-4">
       <div className="flex items-center gap-4">
-        <h1 className="text-lg font-semibold text-primary">EVOX</h1>
+        <h1 className="text-lg font-semibold text-primary">DTD TEAM</h1>
         <span className="text-xs font-semibold uppercase tracking-wider text-secondary">Command Center</span>
       </div>
       <div className="flex items-center gap-2">

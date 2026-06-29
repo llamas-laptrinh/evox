@@ -52,21 +52,21 @@
   --radius-full: 9999px;
 
   /* === Design System V2 — Surface Colors === */
-  --color-base: #0A0A0A;
-  --color-surface-1: #111111;
-  --color-surface-2: #171717;
-  --color-surface-3: #1A1A1A;
-  --color-surface-4: #222222;
+  --color-base: #15171A;
+  --color-surface-1: #1B1E22;
+  --color-surface-2: #212429;
+  --color-surface-3: #262A30;
+  --color-surface-4: #2E333A;
 
   /* === Design System V2 — Semantic Text === */
-  --color-text-primary: #EDEDED;
-  --color-text-secondary: #a0a0a0;
-  --color-text-tertiary: #707070;
-  --color-text-disabled: #484848;
+  --color-text-primary: #F2F2F2;
+  --color-text-secondary: #B5B5B5;
+  --color-text-tertiary: #8B8B8B;
+  --color-text-disabled: #565656;
 
   /* === Design System V2 — Borders === */
-  --color-border-default: #222222;
-  --color-border-hover: #333333;
+  --color-border-default: #333941;
+  --color-border-hover: #424A55;
   --color-border-focus: #0070F3;
 
   /* === Design System V2 — 10-Step Gray Scale === */
@@ -298,21 +298,21 @@
   color-scheme: dark;
 
   /* Background layers (elevation via bg, not shadows) */
-  --bg-base: #0A0A0A;
-  --bg-surface-1: #111111;
-  --bg-surface-2: #171717;
-  --bg-surface-3: #1A1A1A;
-  --bg-surface-4: #222222;
+  --bg-base: #15171A;
+  --bg-surface-1: #1B1E22;
+  --bg-surface-2: #212429;
+  --bg-surface-3: #262A30;
+  --bg-surface-4: #2E333A;
 
   /* Text */
-  --text-primary: #EDEDED;
-  --text-secondary: #a0a0a0;
-  --text-tertiary: #707070;
-  --text-disabled: #484848;
+  --text-primary: #F2F2F2;
+  --text-secondary: #B5B5B5;
+  --text-tertiary: #8B8B8B;
+  --text-disabled: #565656;
 
   /* Borders */
-  --border-default: #222222;
-  --border-hover: #333333;
+  --border-default: #333941;
+  --border-hover: #424A55;
   --border-focus: #0070F3;
 
   /* Status (semantic) */
