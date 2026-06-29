@@ -84,12 +84,17 @@ crons.interval(
 
 // AGT-250: Website Health Monitor — Check every 1 minute
 // Alerts via Telegram if site goes down
-crons.interval(
-  "website-health-check",
-  { minutes: 1 },
-  internal.healthMonitor.checkWebsite,
-  {}
-);
+//
+// DISABLED for self-hosted / local-only setups: it pings PRODUCTION URLs
+// (evox-ten.vercel.app, *.convex.site) which read as "down" from a local
+// deployment, spamming false alerts + Linear ticket attempts.
+// Re-enable in production (and update HEALTH_ENDPOINTS in healthMonitor.ts).
+// crons.interval(
+//   "website-health-check",
+//   { minutes: 1 },
+//   internal.healthMonitor.checkWebsite,
+//   {}
+// );
 
 // AGT-252: Auto-Recruit Agents — Check every 15 minutes
 // Auto-spawns new agents when backlog is high or all agents busy

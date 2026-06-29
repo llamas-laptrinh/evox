@@ -96,7 +96,12 @@ npm run dev
 ## What changed for local mode
 
 - **`docker-compose.yml`** — self-hosted Convex backend + dashboard.
-- **`convex/crons.ts`** — the `sync-linear` cron is commented out so it won't error without a Linear key. (Other crons — heartbeats, monitors — still run.)
+- **`convex/crons.ts`** — two production-only crons are commented out for local:
+  - `sync-linear` — would error every 5 min without a `LINEAR_API_KEY`.
+  - `website-health-check` — pings production URLs (Vercel/Convex Cloud) that read as "down" locally, spamming false alerts + Linear ticket attempts.
+  - (Heartbeats, stuck-agent / recovery / SLA monitors still run — they have no external deps.)
+- **`convex/maxMonitor.ts`** — fixed `storeReport`/`triggerAlert` arg validators (`v.object({})` → real args) so the 15-min monitor cron stops throwing `ArgumentValidationError`.
+- **`next.config.ts`** — CSP `connect-src` now also allows the configured Convex backend (derived from `NEXT_PUBLIC_CONVEX_URL`/`SITE_URL`), so the self-hosted `http/ws://127.0.0.1:3210` isn't blocked. **Changing `next.config.ts` requires restarting `npm run dev`.**
 - **`app/new-task/page.tsx`** — the local task-entry page replacing Linear input.
 
 ## Notes

@@ -1,5 +1,25 @@
 import type { NextConfig } from "next";
 
+// Allow the actually-configured Convex backend in CSP connect-src.
+// Covers self-hosted (http/ws://127.0.0.1:3210) AND Convex Cloud, http + ws.
+function convexConnectOrigins(): string[] {
+  const origins = new Set<string>();
+  for (const raw of [
+    process.env.NEXT_PUBLIC_CONVEX_URL,
+    process.env.NEXT_PUBLIC_CONVEX_SITE_URL,
+  ]) {
+    if (!raw) continue;
+    try {
+      const { protocol, host } = new URL(raw);
+      origins.add(`${protocol}//${host}`);
+      origins.add(`${protocol === "https:" ? "wss:" : "ws:"}//${host}`);
+    } catch {
+      // ignore malformed env values
+    }
+  }
+  return [...origins];
+}
+
 const nextConfig: NextConfig = {
   // TEMPORARY: Ignore TS errors to restore site
   // TODO: Fix all implicit any errors and remove this
@@ -43,7 +63,11 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
               "font-src 'self' data:",
-              "connect-src 'self' https://*.convex.cloud https://*.convex.site wss://*.convex.cloud",
+              [
+                "connect-src 'self'",
+                "https://*.convex.cloud https://*.convex.site wss://*.convex.cloud",
+                ...convexConnectOrigins(),
+              ].join(" "),
               "frame-ancestors 'none'",
             ].join("; "),
           },

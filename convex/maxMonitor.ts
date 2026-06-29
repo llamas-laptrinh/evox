@@ -1,5 +1,6 @@
 import { internalAction, internalMutation, query } from "./_generated/server";
 import { internal, api } from "./_generated/api";
+import { v } from "convex/values";
 
 // AGT-223: Max Autonomous Monitor
 // Background monitoring, self-check, agent sync, inter-agent coordination
@@ -124,7 +125,7 @@ export const check = internalAction({
  * Store monitor report in activity log
  */
 export const storeReport = internalMutation({
-  args: {},
+  args: { report: v.any() },
   handler: async (ctx, { report }: { report: MonitorReport }) => {
     const max = await ctx.db
       .query("agents")
@@ -152,7 +153,7 @@ export const storeReport = internalMutation({
  * Trigger alert for critical issues
  */
 export const triggerAlert = internalMutation({
-  args: {},
+  args: { title: v.string(), message: v.string() },
   handler: async (ctx, { title, message }: { title: string; message: string }) => {
     // Create alert in alerts table
     const alertId = await ctx.db.insert("alerts", {
