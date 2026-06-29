@@ -377,6 +377,22 @@
   box-shadow: var(--shadow-float);
 }
 
+/* ===========================================
+   V2 Semantic Text utilities (CLAUDE.md Rule 1)
+   -------------------------------------------
+   The codebase uses `text-primary` / `text-secondary` / `text-tertiary`
+   as the canonical text tokens. Without these overrides Tailwind resolves
+   them to shadcn's `--color-secondary` (dark gray) / undefined `--color-tertiary`,
+   making body text render too dark. Map them to the V2 text scale instead.
+   Hover variants (e.g. `hover:text-primary`) still win via :hover specificity.
+   =========================================== */
+@layer utilities {
+  .text-primary { color: var(--text-primary); }
+  .text-secondary { color: var(--text-secondary); }
+  .text-tertiary { color: var(--text-tertiary); }
+  .text-disabled { color: var(--text-disabled); }
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

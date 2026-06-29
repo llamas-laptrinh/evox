@@ -10,3 +10,5 @@
 | Dữ liệu message thiếu/lệch | Ghi vào bảng legacy (`messages`/`agentMessages`) | Code mới chỉ ghi `unifiedMessages` (BR-005) |
 | Write conflict trong Convex cron | Nhiều cron ghi cùng bảng cùng thời điểm | Stagger lịch (sync 5m, stuck 7m, recovery 6m, SLA 8m) |
 | Hardcoded secret lọt vào commit | Để key trong code/script làm fallback | Chỉ `.env.local`; grep secret trước commit (xem `lessons-learned`) |
+| `ArgumentValidationError: extra field` ở Convex action/mutation | Khai báo `args: {}` (rỗng) nhưng handler đọc field từ args; TS không bắt được vì kiểu chỉ ở handler | Khai báo validator đúng (`args: { x: v.string() }` / `v.any()`); validator phải khớp dữ liệu caller truyền. Vd `convex/maxMonitor.ts` |
+| App "Something went wrong" mọi trang khi chạy self-hosted | CSP `connect-src` chỉ cho `*.convex.cloud` → chặn `ws://127.0.0.1:3210` của backend local | Thêm origin backend vào `connect-src` trong `next.config.ts` (suy từ `NEXT_PUBLIC_CONVEX_URL`, cả http+ws); restart `npm run dev` |

@@ -20,3 +20,12 @@
 ## "Done" nhưng CEO không chấp nhận
 - Kiểm tra: có commit hash + files changed + build pass chưa (BR-007 Proof of Work).
 - Khắc phục: commit thật, chạy `npx next build`, đính bằng chứng trong ticket.
+
+## App hiện "Something went wrong" trên MỌI trang (self-hosted)
+- Triệu chứng: error boundary `app/error.tsx` bắt lỗi client toàn cục.
+- Kiểm tra: mở DevTools → Console tìm dòng `Application error:`. Nếu thấy `Content-Security-Policy ... connect-src ... ws://127.0.0.1:3210 ... blocked` → CSP chặn backend local.
+- Khắc phục: thêm origin Convex đang cấu hình vào `connect-src` trong `next.config.ts` (đã suy từ `NEXT_PUBLIC_CONVEX_URL`/`SITE_URL`, gồm cả `ws://`). **Restart `npm run dev`** vì header trong `next.config.ts` không hot-reload.
+
+## Cron lỗi/spam khi chạy self-hosted (Linear, health monitor)
+- Kiểm tra: log Convex có `LINEAR_API_KEY not configured` hoặc health-check báo URL production "down".
+- Khắc phục: comment các cron production-only trong `convex/crons.ts` (`sync-linear`, `website-health-check`). Xem `docs/SELF-HOSTED-LOCAL.md`.
