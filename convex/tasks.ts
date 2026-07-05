@@ -949,51 +949,6 @@ export const markCompletedByIdentifier = mutation({
   },
 });
 
-// Sync task status from Linear webhook
-export const syncStatusFromLinear = mutation({
-  args: {
-    linearId: v.string(),
-    status: v.string(),
-  },
-  handler: async (ctx, { linearId, status }) => {
-    // Find task by linearId
-    const task = await ctx.db
-      .query("tasks")
-      .withIndex("by_linearId", (q) => q.eq("linearId", linearId))
-      .first();
-
-    if (!task) {
-      console.log(`Task not found for linearId: ${linearId}`);
-      return null;
-    }
-
-    // Map Linear status to our status
-    const statusMap: Record<string, string> = {
-      "Backlog": "backlog",
-      "Todo": "todo",
-      "In Progress": "in_progress",
-      "In Review": "review",
-      "Done": "done",
-      "Canceled": "done",
-    };
-
-    const mappedStatus = statusMap[status] || "backlog";
-
-    // Skip write if status hasn't changed (avoids conflicts from webhook retries)
-    if (task.status === mappedStatus) {
-      return task._id;
-    }
-
-    const now = Date.now();
-
-    await ctx.db.patch(task._id, {
-      status: mappedStatus as "backlog" | "todo" | "in_progress" | "review" | "done",
-      updatedAt: now,
-    });
-
-    return task._id;
-  },
-});
 
 // ============================================================================
 // COST TRACKING QUERIES

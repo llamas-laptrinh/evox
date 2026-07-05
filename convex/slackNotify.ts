@@ -170,9 +170,9 @@ export const notifyGitPush = internalAction({
     commitUrl: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<{ success: boolean; reason?: string }> => {
-    // Build message with ticket link if available
+    // Build message with ticket id if available (Linear links removed)
     const ticketInfo = args.ticketId
-      ? `\n*Ticket:* <https://linear.app/affitorai/issue/${args.ticketId}|${args.ticketId}>`
+      ? `\n*Ticket:* ${args.ticketId}`
       : "";
     const filesInfo = args.filesChanged
       ? `\n*Files:* ${args.filesChanged} changed`

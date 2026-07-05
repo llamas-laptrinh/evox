@@ -19,10 +19,5 @@
       "Bash(git clean -f*)"
     ]
   },
-  "mcpServers": {
-    "linear": {
-      "type": "url",
-      "url": "https://mcp.linear.app/mcp"
-    }
-  }
+  "mcpServers": {}
 }

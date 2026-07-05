@@ -17,7 +17,7 @@ interface MemoryTabProps {
 /**
  * AGT-113: Memory tab container — WORKING.md, Daily Notes, SOUL preview
  */
-export function MemoryTab({ agentId, agentName, className }: MemoryTabProps) {
+export function MemoryTab({ agentId, className }: MemoryTabProps) {
   // Fetch memory data
   const soulMemory = useQuery(api.agentMemory.getMemory, {
     agentId,
@@ -42,17 +42,11 @@ export function MemoryTab({ agentId, agentName, className }: MemoryTabProps) {
     );
   }
 
-  // Build Linear doc URL for SOUL edit
-  const linearDocUrl = agentName
-    ? `https://linear.app/affitorai/document/${agentName.toLowerCase()}-instructions`
-    : undefined;
-
   return (
     <div className={cn("space-y-6", className)}>
       {/* SOUL Preview (read-only) */}
       <SoulPreview
         content={soulMemory?.content ?? "No SOUL defined."}
-        linearDocUrl={linearDocUrl}
       />
 
       {/* Working Memory (editable) */}

@@ -183,6 +183,16 @@ export const logGitTaskCompletion = internalMutation({
     // AGT-179: Show task title in description for completed events
     const description = task?.title;
 
+    // Close the local task (Linear close-loop removed): "closes AGT-XX" now
+    // marks the task done directly here instead of round-tripping through Linear.
+    if (task && task.status !== "done") {
+      await ctx.db.patch(task._id, {
+        status: "done",
+        updatedAt: Date.now(),
+        completedAt: Date.now(),
+      });
+    }
+
     const eventId = await ctx.db.insert("activityEvents", {
       agentId: actualAgent._id,
       agentName: actualAgentName,
@@ -206,51 +216,6 @@ export const logGitTaskCompletion = internalMutation({
   },
 });
 
-/**
- * AGT-168: Log task event from Linear sync/webhook with deduplication
- * Skips if a github-webhook event already exists for the same ticket+eventType
- */
-export const logLinearTaskEvent = internalMutation({
-  args: {
-    agentId: v.id("agents"),
-    taskId: v.optional(v.id("tasks")),
-    linearIdentifier: v.string(),
-    eventType: v.string(), // "completed", "status_change", etc.
-    title: v.string(),
-    fromStatus: v.optional(v.string()),
-    toStatus: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    // Deduplication: check if we already have a recent event from github-webhook
-    const isDupe = await hasRecentEvent(ctx.db, args.linearIdentifier, args.eventType, 60000);
-    if (isDupe) {
-      console.log(`Skipping duplicate Linear event for ${args.linearIdentifier} (github-webhook already logged)`);
-      return { skipped: true, reason: "duplicate_from_github" };
-    }
-
-    const agentName = await getAgentName(ctx.db, args.agentId);
-    const task = args.taskId ? await ctx.db.get(args.taskId) : null;
-
-    const eventId = await ctx.db.insert("activityEvents", {
-      agentId: args.agentId,
-      agentName,
-      category: "task",
-      eventType: args.eventType,
-      title: args.title,
-      taskId: args.taskId,
-      linearIdentifier: args.linearIdentifier,
-      projectId: task?.projectId,
-      metadata: {
-        fromStatus: args.fromStatus,
-        toStatus: args.toStatus,
-        source: "linear-webhook",
-      },
-      timestamp: Date.now(),
-    });
-
-    return { skipped: false, eventId };
-  },
-});
 
 /**
  * Helper: Log task event (common pattern)

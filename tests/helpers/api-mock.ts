@@ -32,23 +32,6 @@ export function createMockConvexClient() {
   };
 }
 
-// Mock Linear client
-export function createMockLinearClient() {
-  return {
-    issue: vi.fn().mockResolvedValue({
-      id: "test-issue-id",
-      identifier: "AGT-999",
-      title: "Test Issue",
-      state: { name: "Todo" },
-    }),
-    createComment: vi.fn().mockResolvedValue({ id: "comment-id" }),
-    updateIssue: vi.fn().mockResolvedValue({ id: "test-issue-id" }),
-    issues: vi.fn().mockResolvedValue({
-      nodes: [],
-    }),
-  };
-}
-
 // Verify webhook signature helper
 export function createGitHubWebhookPayload(event: string, payload: unknown) {
   const body = JSON.stringify(payload);

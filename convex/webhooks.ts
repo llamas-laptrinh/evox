@@ -1,8 +1,10 @@
 /**
  * Webhook Handlers (AGT-128: Max Visibility Pipeline)
  *
- * GitHub push → Parse AGT-XX → Linear comment
- * Vercel deploy → Match commit → Linear comment / P0 bug ticket
+ * GitHub push → Parse AGT-XX → log activity, close local task on "closes AGT-XX"
+ * Vercel deploy → Match commit → store event, log failures locally
+ *
+ * Linear integration removed — AGT-XX is now an internal-only ticket id.
  */
 import { v } from "convex/values";
 import { mutation, action, internalAction, internalMutation } from "./_generated/server";
@@ -42,253 +44,6 @@ export const storeWebhookEvent = internalMutation({
       commentPosted: args.commentPosted,
       createdAt: Date.now(),
     });
-  },
-});
-
-/**
- * Post a comment to Linear ticket (internal - called by other actions)
- */
-export const postLinearComment = internalAction({
-  args: {
-    ticketId: v.string(), // e.g., "AGT-128"
-    body: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const linearApiKey = process.env.LINEAR_API_KEY;
-    if (!linearApiKey) {
-      console.error("LINEAR_API_KEY not configured");
-      return { success: false, error: "LINEAR_API_KEY not configured" };
-    }
-
-    try {
-      // Get issue UUID from identifier
-      const issueResponse = await fetch("https://api.linear.app/graphql", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: linearApiKey,
-        },
-        body: JSON.stringify({
-          query: `{ issue(id: "${args.ticketId}") { id } }`,
-        }),
-      });
-
-      const issueData = await issueResponse.json();
-      const issueUuid = issueData?.data?.issue?.id;
-
-      if (!issueUuid) {
-        console.error(`Could not find ${args.ticketId} in Linear`);
-        return { success: false, error: `Ticket ${args.ticketId} not found` };
-      }
-
-      // Post comment
-      const commentResponse = await fetch("https://api.linear.app/graphql", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: linearApiKey,
-        },
-        body: JSON.stringify({
-          query: `mutation { commentCreate(input: { issueId: "${issueUuid}", body: "${args.body.replace(/"/g, '\\"').replace(/\n/g, '\\n')}" }) { success } }`,
-        }),
-      });
-
-      const commentData = await commentResponse.json();
-      const success = commentData?.data?.commentCreate?.success === true;
-
-      return { success, ticketId: args.ticketId };
-    } catch (error) {
-      console.error("Error posting Linear comment:", error);
-      return { success: false, error: String(error) };
-    }
-  },
-});
-
-/**
- * AGT-161: Update Linear issue status (e.g., to "Done" on "closes AGT-XX")
- */
-export const updateLinearIssueStatus = internalAction({
-  args: {
-    ticketId: v.string(), // e.g., "AGT-161"
-    status: v.string(),   // e.g., "Done", "In Progress"
-  },
-  handler: async (ctx, args) => {
-    const linearApiKey = process.env.LINEAR_API_KEY;
-    if (!linearApiKey) {
-      console.error("LINEAR_API_KEY not configured");
-      return { success: false, error: "LINEAR_API_KEY not configured" };
-    }
-
-    try {
-      // 1. Get issue UUID and team ID from identifier
-      const issueResponse = await fetch("https://api.linear.app/graphql", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: linearApiKey,
-        },
-        body: JSON.stringify({
-          query: `{ issue(id: "${args.ticketId}") { id team { id } } }`,
-        }),
-      });
-
-      const issueData = await issueResponse.json();
-
-      // Check for rate limiting or other errors
-      if (issueData?.errors?.length > 0) {
-        const errorMsg = issueData.errors[0]?.message || "Unknown error";
-        console.error(`Linear API error for ${args.ticketId}:`, errorMsg);
-        return { success: false, error: `Linear API error: ${errorMsg}` };
-      }
-
-      const issueUuid = issueData?.data?.issue?.id;
-      const teamId = issueData?.data?.issue?.team?.id;
-
-      if (!issueUuid || !teamId) {
-        console.error(`Could not find ${args.ticketId} in Linear. Response:`, JSON.stringify(issueData));
-        return { success: false, error: `Ticket ${args.ticketId} not found` };
-      }
-
-      // 2. Get workflow states for the team to find "Done" state
-      const statesResponse = await fetch("https://api.linear.app/graphql", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: linearApiKey,
-        },
-        body: JSON.stringify({
-          query: `{ workflowStates(filter: { team: { id: { eq: "${teamId}" } } }) { nodes { id name type } } }`,
-        }),
-      });
-
-      const statesData = await statesResponse.json();
-
-      // Check for rate limiting or other errors
-      if (statesData?.errors?.length > 0) {
-        const errorMsg = statesData.errors[0]?.message || "Unknown error";
-        console.error(`Linear API error fetching workflow states:`, errorMsg);
-        return { success: false, error: `Linear API error: ${errorMsg}` };
-      }
-
-      const states = statesData?.data?.workflowStates?.nodes || [];
-
-      // Find the target state (match by name, case-insensitive)
-      const targetState = states.find(
-        (s: { name: string; type: string }) =>
-          s.name.toLowerCase() === args.status.toLowerCase() ||
-          (args.status.toLowerCase() === "done" && s.type === "completed")
-      );
-
-      if (!targetState) {
-        console.error(`Could not find "${args.status}" workflow state for team`);
-        return { success: false, error: `State "${args.status}" not found` };
-      }
-
-      // 3. Update issue status
-      const updateResponse = await fetch("https://api.linear.app/graphql", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: linearApiKey,
-        },
-        body: JSON.stringify({
-          query: `mutation { issueUpdate(id: "${issueUuid}", input: { stateId: "${targetState.id}" }) { success issue { id identifier state { name } } } }`,
-        }),
-      });
-
-      const updateData = await updateResponse.json();
-
-      // Check for rate limiting or other errors
-      if (updateData?.errors?.length > 0) {
-        const errorMsg = updateData.errors[0]?.message || "Unknown error";
-        console.error(`Linear API error updating ${args.ticketId}:`, errorMsg);
-        return { success: false, error: `Linear API error: ${errorMsg}` };
-      }
-
-      const success = updateData?.data?.issueUpdate?.success === true;
-      const newState = updateData?.data?.issueUpdate?.issue?.state?.name;
-
-      console.log(`Updated ${args.ticketId} to ${newState}: ${success}`);
-
-      return { success, ticketId: args.ticketId, newState };
-    } catch (error) {
-      console.error("Error updating Linear issue status:", error);
-      return { success: false, error: String(error) };
-    }
-  },
-});
-
-/**
- * Create a P0 bug ticket in Linear for deploy failures (internal)
- */
-export const createLinearBugTicket = internalAction({
-  args: {
-    title: v.string(),
-    description: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const linearApiKey = process.env.LINEAR_API_KEY;
-    if (!linearApiKey) {
-      console.error("LINEAR_API_KEY not configured");
-      return { success: false, error: "LINEAR_API_KEY not configured" };
-    }
-
-    try {
-      // Get team ID for "Agent Factory" (AGT prefix)
-      const teamResponse = await fetch("https://api.linear.app/graphql", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: linearApiKey,
-        },
-        body: JSON.stringify({
-          query: `{ teams(filter: { key: { eq: "AGT" } }) { nodes { id } } }`,
-        }),
-      });
-
-      const teamData = await teamResponse.json();
-      const teamId = teamData?.data?.teams?.nodes?.[0]?.id;
-
-      if (!teamId) {
-        console.error("Could not find AGT team in Linear");
-        return { success: false, error: "Team not found" };
-      }
-
-      // Create issue with priority 1 (Urgent/P0)
-      const createResponse = await fetch("https://api.linear.app/graphql", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: linearApiKey,
-        },
-        body: JSON.stringify({
-          query: `mutation {
-            issueCreate(input: {
-              teamId: "${teamId}",
-              title: "${args.title.replace(/"/g, '\\"')}",
-              description: "${args.description.replace(/"/g, '\\"').replace(/\n/g, '\\n')}",
-              priority: 1
-            }) {
-              success
-              issue { id identifier url }
-            }
-          }`,
-        }),
-      });
-
-      const createData = await createResponse.json();
-      const success = createData?.data?.issueCreate?.success === true;
-      const issue = createData?.data?.issueCreate?.issue;
-
-      return {
-        success,
-        ticketId: issue?.identifier,
-        url: issue?.url,
-      };
-    } catch (error) {
-      console.error("Error creating Linear bug ticket:", error);
-      return { success: false, error: String(error) };
-    }
   },
 });
 
@@ -347,21 +102,8 @@ export const processGitHubPush = action({
       const ticketIds: string[] = Array.from(new Set(matches.map((m: string) => m.toUpperCase())));
 
       for (const ticketId of ticketIds) {
-        // Build comment body
-        const commentBody = `🔨 **GitHub Push** by ${author}
-
-**Commit:** \`${hash}\` — ${message.split("\n")[0]}
-**Branch:** main
-**Files changed:** ${commit.added?.length || 0} added, ${commit.modified?.length || 0} modified, ${commit.removed?.length || 0} removed
-**Link:** ${url}`;
-
-        // Post comment to Linear
-        const result = await ctx.runAction(internal.webhooks.postLinearComment, {
-          ticketId,
-          body: commentBody,
-        });
-
-        results.push({ ticketId, success: result.success });
+        // No external ticket system (Linear removed) — track the push locally only.
+        results.push({ ticketId, success: true });
 
         // Store webhook event
         await ctx.runMutation(internal.webhooks.storeWebhookEvent, {
@@ -369,7 +111,7 @@ export const processGitHubPush = action({
           eventType: "push",
           payload: JSON.stringify({ commit: hash, message: message.slice(0, 100) }),
           linearTicketId: ticketId,
-          commentPosted: result.success,
+          commentPosted: false,
         });
 
         // AGT-262: Send Slack notification for agent commits
@@ -390,18 +132,17 @@ export const processGitHubPush = action({
       }
 
       // AGT-132: Track skill completion when "closes AGT-XX" detected
-      // AGT-161: Auto-close Linear ticket when "closes AGT-XX" detected
-      // AGT-168: Emit activityEvent with correct agent attribution from git author
+      // AGT-168: Emit activityEvent with correct agent attribution from git author.
+      //          logGitTaskCompletion also closes the local task (status → done).
       const closesMatches = message.match(CLOSES_REGEX);
       if (closesMatches && closesMatches.length > 0) {
-        // Get agent name from git author FIRST (before any Linear API calls)
+        // Get agent name from git author FIRST
         const agentName = GITHUB_TO_AGENT[author.toLowerCase()] || "unknown";
 
         for (const match of closesMatches) {
           const closedTicketId = match.replace(/closes\s+/i, "").toUpperCase();
 
-          // AGT-168: Emit activityEvent with correct attribution BEFORE closing
-          // This ensures we log with git author, not Linear token owner
+          // Emit activityEvent with correct attribution AND close the local task.
           if (agentName !== "unknown") {
             try {
               await ctx.runMutation(internal.activityEvents.logGitTaskCompletion, {
@@ -411,19 +152,8 @@ export const processGitHubPush = action({
                 commitMessage: message.split("\n")[0],
               });
             } catch (e) {
-              console.error(`Failed to log completion event for ${closedTicketId}:`, e);
+              console.error(`Failed to log/close completion for ${closedTicketId}:`, e);
             }
-          }
-
-          // Close the Linear ticket
-          try {
-            const closeResult = await ctx.runAction(internal.webhooks.updateLinearIssueStatus, {
-              ticketId: closedTicketId,
-              status: "Done",
-            });
-            console.log(`Auto-closed ${closedTicketId}: ${closeResult.success}`);
-          } catch (e) {
-            console.error(`Failed to auto-close ${closedTicketId}:`, e);
           }
         }
 
@@ -448,7 +178,7 @@ export const processGitHubPush = action({
 
 /**
  * Process Vercel deployment event
- * Post status updates and create P0 bug tickets on failure
+ * Store the event and log failures locally (Linear ticketing removed).
  */
 const processVercelDeployAction = action({
   args: {
@@ -491,56 +221,23 @@ const processVercelDeployAction = action({
       statusLabel = "Canceled";
     }
 
-    // Build comment body
-    const commentBody = `${statusEmoji} **Vercel Deploy** — ${statusLabel}
-
-**URL:** ${url}
-**Commit:** \`${hash}\` — ${commitMessage.split("\n")[0]}
-**Status:** ${status}`;
-
-    // Post comment to matched Linear tickets
+    // Mark matched tickets as touched by this deploy (no external comment).
     for (const ticketId of ticketIds) {
-      const result = await ctx.runAction(internal.webhooks.postLinearComment, {
-        ticketId,
-        body: commentBody,
-      });
-
-      results.push({ ticketId, success: result.success });
+      results.push({ ticketId, success: true });
     }
 
     // Store webhook event
     await ctx.runMutation(internal.webhooks.storeWebhookEvent, {
       source: "vercel" as const,
       eventType: deploymentType,
-      payload: JSON.stringify({ status, url, commit: hash }),
+      payload: JSON.stringify({ status, url, commit: hash, statusLabel, emoji: statusEmoji }),
       linearTicketId: ticketIds[0] || undefined,
-      commentPosted: results.some((r) => r.success),
+      commentPosted: false,
     });
 
-    // If deploy failed, create P0 bug ticket
+    // Log deploy failures locally (Linear bug-ticket creation removed).
     if (status === "ERROR" || status === "error" || status === "FAILED") {
-      const bugResult = await ctx.runAction(internal.webhooks.createLinearBugTicket, {
-        title: `🚨 [P0] Vercel Deploy Failed — ${hash}`,
-        description: `## Deploy Failure
-
-**Commit:** \`${commitSha}\`
-**Message:** ${commitMessage}
-**URL:** ${url}
-
-## Action Required
-Check Vercel logs and fix immediately.
-
----
-*Auto-created by webhook on deploy failure*`,
-      });
-
-      return {
-        processed: true,
-        status,
-        results,
-        bugTicketCreated: bugResult.success,
-        bugTicketId: bugResult.ticketId,
-      };
+      console.error(`🚨 [P0] Vercel deploy failed — ${hash} (${commitMessage.split("\n")[0]}) ${url}`);
     }
 
     return { processed: true, status, results };

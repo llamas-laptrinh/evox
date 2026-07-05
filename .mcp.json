@@ -1,20 +1,26 @@
 {
   "mcpServers": {
-    "linear": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "https://mcp.linear.app/mcp"]
-    },
     "github": {
       "command": "npx",
-      "args": ["-y", "@anthropic/mcp-github"]
+      "args": [
+        "-y",
+        "@anthropic/mcp-github"
+      ]
     },
     "filesystem": {
       "command": "npx",
-      "args": ["-y", "@anthropic/mcp-filesystem", "/Users/sonpiaz/.openclaw/workspace"]
+      "args": [
+        "-y",
+        "@anthropic/mcp-filesystem",
+        "/Users/sonpiaz/.openclaw/workspace"
+      ]
     },
     "memory": {
       "command": "npx",
-      "args": ["-y", "@anthropic/mcp-memory"]
+      "args": [
+        "-y",
+        "@anthropic/mcp-memory"
+      ]
     }
   }
 }

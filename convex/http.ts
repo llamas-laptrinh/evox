@@ -54,7 +54,6 @@ cors.route({
           recentActivity: recentActivity.slice(0, 10),
           webhooks: {
             github: "https://gregarious-elk-556.convex.site/webhook/github",
-            linear: "https://gregarious-elk-556.convex.site/webhook/linear",
           },
         }),
         {
@@ -135,134 +134,6 @@ cors.route({
       );
     } catch (error) {
       console.error("GitHub webhook error:", error);
-      return new Response(
-        JSON.stringify({ error: "Internal server error" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
-    }
-  }),
-});
-
-/**
- * POST /webhook/linear — Handle Linear issue updates
- * Syncs status changes and creates dispatches for new/assigned issues
- *
- * Auto-dispatch triggers:
- * 1. New issue created with assignee = Sam/Leo
- * 2. Existing issue assigned to Sam/Leo
- * 3. Issue moved to "Todo" or "In Progress" with Sam/Leo assignee
- */
-cors.route({
-  path: "/webhook/linear",
-  method: "POST",
-  handler: httpAction(async (ctx, request) => { // Webhook: HMAC-SHA256 auth
-    try {
-      const secret = process.env.LINEAR_WEBHOOK_SECRET;
-      if (!secret) {
-        console.error("LINEAR_WEBHOOK_SECRET not set — rejecting webhook (fail closed)");
-        return new Response(
-          JSON.stringify({ error: "Webhook not configured" }),
-          { status: 500, headers: { "Content-Type": "application/json" } }
-        );
-      }
-
-      const bodyText = await request.text();
-      const signature = request.headers.get("linear-signature");
-      if (!signature || !(await verifyWebhookHmac(bodyText, signature, secret, "hex"))) {
-        console.error("Invalid Linear webhook signature");
-        return new Response(
-          JSON.stringify({ error: "Invalid signature" }),
-          { status: 401, headers: { "Content-Type": "application/json" } }
-        );
-      }
-
-      const body = JSON.parse(bodyText);
-      // Only dispatch to sam and leo (uppercase for Linear webhook matching)
-      const AGENTS = VALID_AGENTS.filter((n) => ["sam", "leo"].includes(n)).map((n) => n.toUpperCase());
-      let dispatched = false;
-
-      // Extract agent from title prefix [SAM] or [LEO]
-      const extractAgentFromTitle = (title: string): string | null => {
-        const match = title?.match(/^\[(SAM|LEO)\]/i);
-        return match ? match[1].toUpperCase() : null;
-      };
-
-      // Helper to create dispatch
-      const tryDispatch = async (assigneeName: string | null, identifier: string, title: string, description: string) => {
-        // First check assignee, then fall back to title prefix
-        let agentName = assigneeName?.toUpperCase();
-        if (!agentName || !AGENTS.includes(agentName)) {
-          agentName = extractAgentFromTitle(title) || undefined;
-        }
-
-        if (agentName && AGENTS.includes(agentName)) {
-          await ctx.runMutation(api.dispatches.createFromLinear, {
-            agentName,
-            linearIdentifier: identifier,
-            title,
-            description: description || "",
-          });
-          return true;
-        }
-        return false;
-      };
-
-      // Handle issue updates
-      if (body.type === "Issue" && body.action === "update") {
-        // Sync status if changed
-        if (body.data.state) {
-          await ctx.runMutation(api.tasks.syncStatusFromLinear, {
-            linearId: body.data.id,
-            status: body.data.state.name,
-          });
-        }
-
-        // Auto-dispatch on assignee change
-        if (body.updatedFrom?.assigneeId !== undefined) {
-          dispatched = await tryDispatch(
-            body.data.assignee?.name,
-            body.data.identifier,
-            body.data.title,
-            body.data.description
-          );
-        }
-
-        // Auto-dispatch when moved to Todo/In Progress with agent assignee
-        if (body.updatedFrom?.stateId !== undefined) {
-          const newState = body.data.state?.name?.toLowerCase();
-          if (newState === "todo" || newState === "in progress") {
-            dispatched = await tryDispatch(
-              body.data.assignee?.name,
-              body.data.identifier,
-              body.data.title,
-              body.data.description
-            );
-          }
-        }
-      }
-
-      // Handle new issues — create dispatch if assigned to agent
-      if (body.type === "Issue" && body.action === "create") {
-        dispatched = await tryDispatch(
-          body.data.assignee?.name,
-          body.data.identifier,
-          body.data.title,
-          body.data.description
-        );
-      }
-
-      return new Response(
-        JSON.stringify({
-          received: true,
-          type: body.type,
-          action: body.action,
-          dispatched,
-          identifier: body.data?.identifier,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
-    } catch (error) {
-      console.error("Linear webhook error:", error);
       return new Response(
         JSON.stringify({ error: "Internal server error" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
@@ -415,7 +286,7 @@ cors.route({
       contextSections.push("=== DISPATCH RULES ===");
       contextSections.push(`- Commit with "closes ${ticketId || '{TICKET_ID}'}" when done`);
       contextSections.push("- Push immediately after commit");
-      contextSections.push("- Leave Linear comment: files changed, what was done");
+      contextSections.push("- Report to #dev after pushing (postToChannel): files changed, what was done");
       contextSections.push("- Update WORKING memory at session end");
       if (skills?.territory) {
         contextSections.push(`- Stay in your territory: ${skills.territory.join(", ")}`);
@@ -555,7 +426,7 @@ cors.route({
       lines.push("=== DISPATCH RULES ===");
       lines.push(`- Commit with "closes ${ticketId || '{TICKET_ID}'}" when done`);
       lines.push("- Push immediately after commit");
-      lines.push("- Leave Linear comment: files changed, what was done");
+      lines.push("- Report to #dev after pushing (postToChannel): files changed, what was done");
 
       return new Response(lines.join("\n"), {
         status: 200,
@@ -714,31 +585,6 @@ cors.route({
   }),
 });
 
-// POST /api/linear-sync - Trigger Linear sync
-cors.route({
-  path: "/api/linear-sync",
-  method: "POST",
-  handler: withAuth(async (ctx, request) => {
-    try {
-      // Trigger Linear sync action
-      const result = await ctx.runAction(api.linearSync.triggerSync, {});
-
-      return new Response(JSON.stringify(result), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    } catch (error) {
-      console.error("Linear sync trigger error:", error);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: error instanceof Error ? error.message : "Internal server error"
-        }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
-    }
-  }),
-});
 
 // ============================================================
 // AGT-112: TASK COMMENT ENDPOINTS
@@ -1463,7 +1309,7 @@ cors.route({
 
 /**
  * POST /github-webhook — Handle GitHub push events
- * Parses commit messages for AGT-XX and posts comments to Linear
+ * Parses commit messages for AGT-XX; logs activity and closes local tasks
  */
 cors.route({
   path: "/github-webhook",
@@ -1617,12 +1463,16 @@ cors.route({
         );
       }
 
-      // Parse payload to get ticket info
+      // Parse payload to get ticket info + rich context for the agent prompt
       let ticket = null;
+      let taskTitle = null;
+      let taskDescription = null;
       if (dispatch.payload) {
         try {
           const payload = JSON.parse(dispatch.payload);
           ticket = payload.identifier || payload.ticketId || null;
+          taskTitle = payload.title || null;
+          taskDescription = payload.description || null;
         } catch {}
       }
 
@@ -1632,6 +1482,8 @@ cors.route({
           agentName: dispatch.agentName,
           command: dispatch.command,
           ticket,
+          title: taskTitle,
+          description: taskDescription,
           payload: dispatch.payload,
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
@@ -1771,7 +1623,7 @@ cors.route({
   handler: withAuth(async (ctx, request) => {
     try {
       const body = await request.json();
-      const { agentName, command, ticket, description } = body;
+      const { agentName, command, ticket, description, title } = body;
 
       if (!agentName || !command) {
         return new Response(
@@ -1796,7 +1648,7 @@ cors.route({
       const dispatchId = await ctx.runMutation(api.dispatches.create, {
         agentId: agent._id,
         command,
-        payload: JSON.stringify({ identifier: ticket, description }),
+        payload: JSON.stringify({ identifier: ticket, title: title || command, description }),
       });
 
       return new Response(
@@ -1934,7 +1786,7 @@ cors.route({
 
 /**
  * POST /vercel-webhook — Handle Vercel deployment events
- * Posts status updates to Linear and creates P0 bug tickets on failure
+ * Stores deploy events and logs failures locally
  */
 cors.route({
   path: "/vercel-webhook",
@@ -2748,7 +2600,7 @@ cors.route({
   handler: withAuth(async (ctx, request) => {
     try {
       const body = await request.json();
-      const { agentName, command, ticket, description } = body;
+      const { agentName, command, ticket, description, title } = body;
       if (!agentName || !command) {
         return new Response(JSON.stringify({ error: "agentName and command required" }), { status: 400, headers: { "Content-Type": "application/json" } });
       }
@@ -2758,7 +2610,7 @@ cors.route({
         return new Response(JSON.stringify({ error: "Agent not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
       }
       const dispatchId = await ctx.runMutation(api.dispatches.create, {
-        agentId: agent._id, command, payload: JSON.stringify({ identifier: ticket, description }), priority: 0, isUrgent: true,
+        agentId: agent._id, command, payload: JSON.stringify({ identifier: ticket, title: title || command, description }), priority: 0, isUrgent: true,
       });
       return new Response(JSON.stringify({ success: true, dispatchId, priority: "URGENT" }), { status: 200, headers: { "Content-Type": "application/json" } });
     } catch (error) {

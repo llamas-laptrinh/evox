@@ -26,7 +26,6 @@ describe("Status Endpoint - Critical Path", () => {
           recentActivity: [],
           webhooks: {
             github: "https://gregarious-elk-556.convex.site/webhook/github",
-            linear: "https://gregarious-elk-556.convex.site/webhook/linear",
           },
         }),
       } as Response);
@@ -108,7 +107,6 @@ describe("Status Endpoint - Critical Path", () => {
         json: () => Promise.resolve({
           webhooks: {
             github: "https://gregarious-elk-556.convex.site/webhook/github",
-            linear: "https://gregarious-elk-556.convex.site/webhook/linear",
           },
         }),
       } as Response);
@@ -117,7 +115,6 @@ describe("Status Endpoint - Critical Path", () => {
       const data = await response.json();
 
       expect(data.webhooks).toHaveProperty("github");
-      expect(data.webhooks).toHaveProperty("linear");
     });
   });
 
@@ -182,34 +179,6 @@ describe("Status Endpoint - Critical Path", () => {
 
       expect(match).toBeTruthy();
       expect(match![1]).toBe("AGT-456");
-    });
-  });
-
-  describe("POST /webhook/linear", () => {
-    it("should accept issue update events", async () => {
-      const mockFetch = vi.mocked(fetch);
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ success: true }),
-      } as Response);
-
-      const payload = {
-        action: "update",
-        type: "Issue",
-        data: {
-          id: "issue-123",
-          identifier: "AGT-789",
-          state: { name: "Done" },
-        },
-      };
-
-      await fetch(`${BASE_URL}/webhook/linear`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      expect(mockFetch).toHaveBeenCalled();
     });
   });
 });

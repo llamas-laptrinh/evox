@@ -2,7 +2,7 @@
  * Webhook Tests
  *
  * North Star: External events flow into system automatically.
- * Tests cover: GitHub webhooks, Linear webhooks, payload parsing.
+ * Tests cover: GitHub webhooks, Vercel deploy webhooks, payload parsing.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createMockCtx } from "../../helpers/convex-mock";
@@ -144,130 +144,6 @@ describe("Webhooks - Critical Path", () => {
     });
   });
 
-  describe("Linear Issue Webhook", () => {
-    it("should parse issue created event", () => {
-      const payload = {
-        action: "create",
-        type: "Issue",
-        data: {
-          id: "issue-uuid",
-          identifier: "AGT-123",
-          title: "Fix authentication bug",
-          state: { name: "Todo" },
-          assignee: { name: "SAM" },
-          priority: 2,
-        },
-      };
-
-      expect(payload.action).toBe("create");
-      expect(payload.data.identifier).toBe("AGT-123");
-      expect(payload.data.assignee.name).toBe("SAM");
-    });
-
-    it("should parse issue updated event", () => {
-      const payload = {
-        action: "update",
-        type: "Issue",
-        data: {
-          identifier: "AGT-123",
-          state: { name: "In Progress" },
-        },
-        updatedFrom: {
-          stateId: "state-todo",
-        },
-      };
-
-      expect(payload.action).toBe("update");
-      expect(payload.data.state.name).toBe("In Progress");
-      expect(payload.updatedFrom).toBeDefined();
-    });
-
-    it("should detect status change", () => {
-      const payload = {
-        action: "update",
-        updatedFrom: { stateId: "state-todo" },
-        data: { state: { id: "state-in-progress", name: "In Progress" } },
-      };
-
-      const hasStatusChange = payload.updatedFrom?.stateId !== undefined;
-
-      expect(hasStatusChange).toBe(true);
-    });
-
-    it("should map Linear status to internal status", () => {
-      const statusMap: Record<string, string> = {
-        "Backlog": "backlog",
-        "Todo": "todo",
-        "In Progress": "in_progress",
-        "In Review": "in_progress",
-        "Done": "done",
-        "Canceled": "cancelled",
-      };
-
-      expect(statusMap["In Progress"]).toBe("in_progress");
-      expect(statusMap["Done"]).toBe("done");
-    });
-
-    it("should sync task from Linear", async () => {
-      const linearData = {
-        identifier: "AGT-123",
-        title: "Fix bug",
-        state: { name: "In Progress" },
-        assignee: { name: "SAM" },
-        priority: 2,
-      };
-
-      const taskData = {
-        linearIdentifier: linearData.identifier,
-        title: linearData.title,
-        status: "in_progress",
-        agentName: linearData.assignee.name,
-        priority: linearData.priority,
-        updatedAt: Date.now(),
-      };
-
-      ctx.db.insert.mockResolvedValue("task_new");
-
-      await ctx.db.insert("tasks", taskData);
-
-      expect(ctx.db.insert).toHaveBeenCalledWith(
-        "tasks",
-        expect.objectContaining({
-          linearIdentifier: "AGT-123",
-          status: "in_progress",
-        })
-      );
-    });
-  });
-
-  describe("Linear Comment Webhook", () => {
-    it("should parse comment created event", () => {
-      const payload = {
-        action: "create",
-        type: "Comment",
-        data: {
-          id: "comment-uuid",
-          body: "This looks good, merging now.",
-          issue: { identifier: "AGT-123" },
-          user: { name: "MAX" },
-        },
-      };
-
-      expect(payload.type).toBe("Comment");
-      expect(payload.data.issue.identifier).toBe("AGT-123");
-      expect(payload.data.user.name).toBe("MAX");
-    });
-
-    it("should detect @mentions in comments", () => {
-      const body = "@SAM @LEO please review this change";
-
-      const pattern = /@(\w+)/g;
-      const mentions = [...body.matchAll(pattern)].map((m) => m[1]);
-
-      expect(mentions).toContain("SAM");
-      expect(mentions).toContain("LEO");
-    });
-  });
 
   describe("Webhook Security", () => {
     it("should validate GitHub signature", () => {
@@ -299,17 +175,6 @@ describe("Webhooks - Critical Path", () => {
       expect(validateSignature(undefined)).toBe(false);
       expect(validateSignature("invalid")).toBe(false);
       expect(validateSignature("sha256=valid")).toBe(true);
-    });
-
-    it("should validate Linear webhook IP", () => {
-      const allowedIPs = ["35.231.147.226", "35.243.134.228"];
-
-      const validateIP = (ip: string): boolean => {
-        return allowedIPs.includes(ip);
-      };
-
-      expect(validateIP("35.231.147.226")).toBe(true);
-      expect(validateIP("1.2.3.4")).toBe(false);
     });
   });
 
@@ -344,7 +209,7 @@ describe("Webhooks - Critical Path", () => {
       };
 
       logError("github", "Invalid signature");
-      logError("linear", "Missing issue identifier");
+      logError("vercel", "Missing commit sha");
 
       expect(errors).toHaveLength(2);
     });

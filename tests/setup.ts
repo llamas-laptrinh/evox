@@ -5,7 +5,6 @@ import { beforeAll, afterAll, afterEach, vi } from "vitest";
 
 // Mock environment variables
 process.env.NEXT_PUBLIC_CONVEX_URL = "https://test.convex.cloud";
-process.env.LINEAR_API_KEY = "test-linear-key";
 process.env.GITHUB_WEBHOOK_SECRET = "test-github-secret";
 
 // Global mocks

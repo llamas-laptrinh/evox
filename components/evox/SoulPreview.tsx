@@ -6,13 +6,12 @@ import { cn } from "@/lib/utils";
 interface SoulPreviewProps {
   content: string;
   className?: string;
-  linearDocUrl?: string;
 }
 
 /**
  * AGT-113: Read-only SOUL.md preview with expand/collapse
  */
-export function SoulPreview({ content, className, linearDocUrl }: SoulPreviewProps) {
+export function SoulPreview({ content, className }: SoulPreviewProps) {
   const [expanded, setExpanded] = useState(false);
 
   // Show first 3 lines when collapsed
@@ -28,16 +27,6 @@ export function SoulPreview({ content, className, linearDocUrl }: SoulPreviewPro
           <span className="text-base">🧬</span>
           <span className="text-xs font-semibold uppercase tracking-wider text-secondary">SOUL</span>
         </div>
-        {linearDocUrl && (
-          <a
-            href={linearDocUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-secondary hover:text-secondary"
-          >
-            Edit in Linear ↗
-          </a>
-        )}
       </div>
 
       {/* Content */}

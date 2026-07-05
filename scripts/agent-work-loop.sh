@@ -786,11 +786,15 @@ GO. Find work. Ship something."
   COMMAND=$(echo "$DISPATCH_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('command','work'))" 2>/dev/null || echo "work")
   PAYLOAD=$(echo "$DISPATCH_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('payload',''))" 2>/dev/null || echo "")
   TICKET=$(echo "$DISPATCH_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('ticket') or '')" 2>/dev/null || echo "")
+  # Rich context (sent explicitly to the agent so it never receives an empty payload)
+  TITLE=$(echo "$DISPATCH_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('title') or '')" 2>/dev/null || echo "")
+  DESCRIPTION=$(echo "$DISPATCH_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('description') or '')" 2>/dev/null || echo "")
 
   log "   🎯 Found work!"
   log "   📦 Dispatch: $DISPATCH_ID"
   log "   🏷️  Command: $COMMAND"
   log "   🎫 Ticket: ${TICKET:-none}"
+  log "   📝 Title: ${TITLE:-none}"
 
   # -------------------------------------------------------------------------
   # 4. CLAIM THE DISPATCH (mark as running)
@@ -824,18 +828,20 @@ GO. Find work. Ship something."
   log "   📤 Sending task to Claude..."
   update_agent_status "busy" "$COMMAND"
 
-  # Build the task prompt
+  # Build the task prompt — present full context, not a raw JSON blob
   TASK_PROMPT="You have a new task assigned.
 
-DISPATCH_ID: $DISPATCH_ID
-COMMAND: $COMMAND
 TICKET: ${TICKET:-none}
-PAYLOAD: $PAYLOAD
+TITLE: ${TITLE:-$COMMAND}
+COMMAND: $COMMAND
+
+DESCRIPTION:
+${DESCRIPTION:-(no description provided — infer the work from the title/command above)}
 
 Instructions:
 1. Read your agent file: agents/$AGENT_LOWER.md
-2. Do the work described above
-3. Commit changes if any
+2. Do the work described above (stay in your territory)
+3. Commit with \"closes ${TICKET:-the ticket}\" and push to GitHub
 4. When DONE, run these commands:
    curl -s '$EVOX_API/markDispatchCompleted?dispatchId=$DISPATCH_ID&result=Done'
    curl -X POST '$EVOX_API/postToChannel' -H 'Content-Type: application/json' -d '{\"channel\":\"dev\",\"from\":\"$AGENT_UPPER\",\"message\":\"✅ Completed: $COMMAND\"}'

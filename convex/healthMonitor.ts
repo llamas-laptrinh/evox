@@ -302,31 +302,11 @@ export const checkWebsite = internalAction({
           error: result.error || `HTTP ${result.httpCode}`,
         });
 
-        // 4. Create P0 bug ticket in Linear
+        // 4. Log the P0 incident locally (Linear ticket creation removed)
         const errorMsg = result.error || `HTTP ${result.httpCode}`;
-        const ticketResult = await ctx.runAction(internal.webhooks.createLinearBugTicket, {
-          title: `[P0] ${result.name} Down — ${errorMsg}`,
-          description: `## 🔴 Website Health Monitor Alert\n\n` +
-            `**Service:** ${result.name}\n` +
-            `**URL:** ${result.url}\n` +
-            `**Status:** DOWN\n` +
-            `**Error:** ${errorMsg}\n` +
-            `**HTTP Code:** ${result.httpCode || "N/A"}\n` +
-            `**Response Time:** ${result.responseTime}ms\n` +
-            `**Detected At:** ${new Date().toISOString()}\n\n` +
-            `## Next Steps\n\n` +
-            `1. Check Vercel deployment logs\n` +
-            `2. Check Convex dashboard for errors\n` +
-            `3. Verify DNS and SSL certificates\n` +
-            `4. Monitor recovery status\n\n` +
-            `Auto-dispatched to Sam for investigation.`,
-        });
+        console.error(`[HealthMonitor] [P0] ${result.name} DOWN — ${errorMsg} (${result.url})`);
 
-        if (ticketResult.success) {
-          console.log(`[HealthMonitor] Created Linear ticket: ${ticketResult.ticketId}`);
-        }
-
-        console.log(`[HealthMonitor] ALERT: ${result.name} is DOWN! → Notified MAX, dispatched Sam, created ticket.`);
+        console.log(`[HealthMonitor] ALERT: ${result.name} is DOWN! → Notified MAX, dispatched Sam.`);
       }
 
       // RECOVERED alert
